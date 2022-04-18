@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
+import { ConvexGeometry } from "three/examples/jsm/geometries/ConvexGeometry";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
-import Stats from "three/examples/jsm/libs/stats.module";
 import * as CANNON from "cannon-es";
 import CannonUtils from "../cannon/utils/cannonUtils";
 import CannonDebugRenderer from "../cannon/utils/cannonDebugRenderer";
+import { Body, Trimesh } from "cannon-es";
 
 interface ISoldierAction {
   idleAction: THREE.AnimationAction;
@@ -23,6 +24,10 @@ interface ISoldier {
   soldierBody?: CANNON.Body;
 }
 
+let soldier: ISoldier = {
+  loader: new GLTFLoader(),
+};
+
 const Scene = () => {
   const canvasRef = useRef<any>();
   const [renderer, setRenderer] = useState<any>(null);
@@ -32,17 +37,13 @@ const Scene = () => {
   const [normalMaterial] = useState(new THREE.MeshNormalMaterial());
   const [phongMaterial] = useState(new THREE.MeshPhongMaterial());
 
-  const [soldier, setSoldier] = useState<ISoldier>({
-    loader: new GLTFLoader(),
-  });
-
-  const handleResize = () => {
+  const handleResize = useCallback(() => {
     if (!camera || !renderer) return;
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer?.setSize(window.innerWidth, window.innerHeight);
     render();
-  };
+  }, [camera, renderer]);
 
   useEffect(() => {
     window.addEventListener("resize", handleResize, false);
@@ -68,20 +69,13 @@ const Scene = () => {
     );
   }, [canvasRef]);
 
-  useEffect(() => {
-    if (!renderer || !camera) return;
-    handleResize();
-    configRenderer();
-    setCameraPos();
-    addToScene();
-  }, [renderer, camera]);
-
   const configRenderer = () => {
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   };
+
   const setCameraPos = () => {
-    camera.position.set(0, 4, 4);
+    camera.position.set(-3, 2, 4);
   };
 
   const addToScene = () => {
@@ -94,8 +88,120 @@ const Scene = () => {
     tmpColiObjectsLoad();
   };
 
+  useEffect(() => {
+    if (!renderer || !camera) return;
+    handleResize();
+    configRenderer();
+    setCameraPos();
+    addToScene();
+  }, [renderer, camera]);
+
   const render = () => {
     renderer.render(scene, camera);
+  };
+
+  const soliderLoad = () => {
+    // Load a glTF resource
+    soldier.loader.load(
+      // resource URL
+      "/assets/Soldier.glb",
+      // called when the resource is loaded
+      function (gltf) {
+        gltf.scene.scale.set(0.025, 0.025, 0.025);
+        const model = gltf.scene;
+        const animations = gltf.animations;
+        const mixer = new THREE.AnimationMixer(model);
+        model.position.set(-2, 1, 0);
+
+        const vanguardMesh = model.children[0].children[1] as THREE.Mesh;
+        vanguardMesh.material = normalMaterial;
+        console.log(vanguardMesh);
+
+        let physicBody = new Body({ mass: 1 });
+        const geo = vanguardMesh.geometry;
+        const indices = geo.getIndex();
+        const attr = geo.attributes;
+        var result: any = new Float32Array(attr.position.count * 3);
+        for (var i = 0; i < attr.position.count; ++i) {
+          result[i * 3 + 0] =
+            attr.position.getX(i) * model.scale.x + model.position.x;
+          result[i * 3 + 1] =
+            attr.position.getY(i) * model.scale.y + model.position.y;
+          result[i * 3 + 2] =
+            attr.position.getZ(i) * model.scale.z + model.position.z;
+        }
+        const indiceArray: any = indices?.array;
+        const trimeshShape = new Trimesh(result, indiceArray);
+        physicBody.addShape(trimeshShape);
+        physicBody.position.set(-2, 1, 0);
+        world.addBody(physicBody);
+        scene.add(model);
+
+        // const attr = geo.geometry.attributes;
+        // var result = new Float32Array(attr.position.count * 3);
+        // for (var i = 0; i < attr.position.count; ++i) {
+        //   result[i * 3 + 0] =
+        //     attr.position.getX(i) * geo.scale.x + geo.position.x;
+        //   result[i * 3 + 1] =
+        //     attr.position.getY(i) * geo.scale.y + geo.position.y;
+        //   result[i * 3 + 2] =
+        //     attr.position.getZ(i) * geo.scale.z + geo.position.z;
+        // }
+        // // const vanguardVisor = model.children[0].children[2] as THREE.Mesh;
+        // const positions = vanguardMesh.geometry.attributes.position.array;
+        // const points: THREE.Vector3[] = [];
+        // for (let i = 0; i < positions.length; i += 3) {
+        //   points.push(
+        //     new THREE.Vector3(positions[i], positions[i + 1], positions[i + 2])
+        //   );
+        // }
+        // scene.add(model);
+        // scene.add(vanguardVisor);
+        // const convexHull = new ConvexGeometry(points);
+        // const vMesh = new THREE.Mesh(convexHull, normalMaterial);
+
+        // const soldierBody = new CANNON.Body({
+        //   mass: 1,
+        //   shape: CannonUtils.CreateConvexPolyhedron(convexHull),
+        // });
+
+        // soldierBody.position.set(
+        //   model.position.x,
+        //   model.position.y,
+        //   model.position.z
+        // );
+        // world.addBody(soldierBody);
+
+        // model.traverse(function (object) {
+        //   if (object instanceof THREE.Mesh) {
+        //     // const geometry = new THREE.BufferGeometry(object.geometry);
+        //     object.castShadow = true;
+        //   }
+        // });
+
+        soldier = {
+          ...soldier,
+          model,
+          animations,
+          actions: {
+            idleAction: mixer.clipAction(animations[0]),
+            walkAction: mixer.clipAction(animations[3]),
+            runAction: mixer.clipAction(animations[1]),
+          },
+          // soldierMesh: vMesh,
+          // soldierBody,
+          loaded: true,
+        };
+      },
+      // called while loading is progressing
+      function (xhr) {
+        console.log((xhr.loaded / 2160468) * 100 + "% loaded");
+      },
+      // called when loading has errors
+      function (error) {
+        console.log("An error happened");
+      }
+    );
   };
 
   const lightLoad = () => {
@@ -219,7 +325,7 @@ const Scene = () => {
 
     const cannonDebugRenderer = new CannonDebugRenderer(scene, world);
 
-    function animate() {
+    const animate = () => {
       requestAnimationFrame(animate);
       controls.update();
       //delta = clock.getDelta()
@@ -261,84 +367,22 @@ const Scene = () => {
       //   icosahedronBody.quaternion.z,
       //   icosahedronBody.quaternion.w
       // );
-
-      if (soldier.loaded) {
-        soldier.soldierMesh?.position.set(
-          soldier.soldierBody?.position.x as number,
-          soldier.soldierBody?.position.y as number,
-          soldier.soldierBody?.position.z as number
-        );
-        soldier.soldierMesh?.quaternion.set(
-          soldier.soldierBody?.quaternion.x as number,
-          soldier.soldierBody?.quaternion.y as number,
-          soldier.soldierBody?.quaternion.z as number,
-          soldier.soldierBody?.quaternion.w as number
-        );
-      }
+      // if (soldier.loaded) {
+      //   soldier.model?.position.set(
+      //     soldier.soldierBody?.position.x as number,
+      //     soldier.soldierBody?.position.y as number,
+      //     soldier.soldierBody?.position.z as number
+      //   );
+      //   soldier.model?.quaternion.set(
+      //     soldier.soldierBody?.quaternion.x as number,
+      //     soldier.soldierBody?.quaternion.y as number,
+      //     soldier.soldierBody?.quaternion.z as number,
+      //     soldier.soldierBody?.quaternion.w as number
+      //   );
+      // }
       render();
-    }
+    };
     animate();
-  };
-
-  const soliderLoad = () => {
-    // Load a glTF resource
-    soldier.loader.load(
-      // resource URL
-      "/assets/Soldier.glb",
-      // called when the resource is loaded
-      function (gltf) {
-        const model = gltf.scene;
-        const animations = gltf.animations;
-        const mixer = new THREE.AnimationMixer(model);
-        model.position.set(-2, 1, 0);
-
-        const soldierMesh = model.children[0].children[1] as THREE.Mesh;
-        soldierMesh.material = normalMaterial;
-        // scene.add(model);
-
-        const soldierBody = new CANNON.Body({
-          mass: 1,
-          shape: CannonUtils.CreateTrimesh(
-            (soldierMesh as THREE.Mesh).geometry
-          ),
-        });
-        soldierBody.position.set(
-          model.position.x,
-          model.position.y,
-          model.position.z
-        );
-        world.addBody(soldierBody);
-
-        // model.traverse(function (object) {
-        //   if (object instanceof THREE.Mesh) {
-        //     // const geometry = new THREE.BufferGeometry(object.geometry);
-        //     object.castShadow = true;
-        //   }
-        // });
-
-        setSoldier({
-          ...soldier,
-          model,
-          animations,
-          actions: {
-            idleAction: mixer.clipAction(animations[0]),
-            walkAction: mixer.clipAction(animations[3]),
-            runAction: mixer.clipAction(animations[1]),
-          },
-          soldierMesh,
-          soldierBody,
-          loaded: true,
-        });
-      },
-      // called while loading is progressing
-      function (xhr) {
-        console.log((xhr.loaded / xhr.total) * 100 + "% loaded");
-      },
-      // called when loading has errors
-      function (error) {
-        console.log("An error happened");
-      }
-    );
   };
 
   return (
