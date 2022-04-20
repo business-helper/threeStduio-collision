@@ -36,6 +36,7 @@ const Scene = () => {
   const [world] = useState(new CANNON.World());
   const [normalMaterial] = useState(new THREE.MeshNormalMaterial());
   const [phongMaterial] = useState(new THREE.MeshPhongMaterial());
+  const [planePhyMaterial] = useState(new CANNON.Material());
 
   const handleResize = useCallback(() => {
     if (!camera || !renderer) return;
@@ -85,6 +86,7 @@ const Scene = () => {
     lightLoad();
     soliderLoad();
     planeLoad();
+    wallLoad();
     tmpColiObjectsLoad();
   };
 
@@ -176,26 +178,38 @@ const Scene = () => {
 
   const lightLoad = () => {
     const light1 = new THREE.SpotLight();
-    light1.position.set(2.5, 5, 5);
-    light1.angle = Math.PI / 4;
-    light1.penumbra = 0.5;
-    light1.castShadow = true;
-    light1.shadow.mapSize.width = 1024;
-    light1.shadow.mapSize.height = 1024;
-    light1.shadow.camera.near = 0.5;
-    light1.shadow.camera.far = 20;
+    light1.position.set(0, 20, 0);
+    // light1.intensity = 1;
+    // light1.angle = Math.PI / 4;
+    // light1.penumbra = 0.5;
+    // light1.castShadow = true;
+    // light1.shadow.mapSize.width = 1024;
+    // light1.shadow.mapSize.height = 1024;
+    // light1.shadow.camera.near = 0.5;
+    // light1.shadow.camera.far = 50;
     scene.add(light1);
 
-    const light2 = new THREE.SpotLight();
-    light2.position.set(-2.5, 5, 5);
-    light2.angle = Math.PI / 4;
-    light2.penumbra = 0.5;
-    light2.castShadow = true;
-    light2.shadow.mapSize.width = 1024;
-    light2.shadow.mapSize.height = 1024;
-    light2.shadow.camera.near = 0.5;
-    light2.shadow.camera.far = 20;
-    scene.add(light2);
+    // const light2 = new THREE.SpotLight();
+    // light2.position.set(-2.5, 5, 5);
+    // light2.angle = Math.PI / 4;
+    // light2.penumbra = 0.5;
+    // light2.castShadow = true;
+    // light2.shadow.mapSize.width = 1024;
+    // light2.shadow.mapSize.height = 1024;
+    // light2.shadow.camera.near = 0.5;
+    // light2.shadow.camera.far = 50;
+    // scene.add(light2);
+
+    const light3 = new THREE.AmbientLight();
+    // light1.intensity = 1;
+    // light1.angle = Math.PI / 4;
+    // light1.penumbra = 0.5;
+    // light1.castShadow = true;
+    // light1.shadow.mapSize.width = 1024;
+    // light1.shadow.mapSize.height = 1024;
+    // light1.shadow.camera.near = 0.5;
+    // light1.shadow.camera.far = 50;
+    scene.add(light3);
   };
 
   const planeLoad = () => {
@@ -208,13 +222,34 @@ const Scene = () => {
 
     const planeBody = new CANNON.Body({
       mass: 0,
-      shape: new CANNON.Plane(),
+      shape: new CANNON.Box(new CANNON.Vec3(12.5, 12.5, 0.1)),
+      material: planePhyMaterial,
     });
     planeBody.quaternion.setFromAxisAngle(
       new CANNON.Vec3(1, 0, 0),
       -Math.PI / 2
     );
     world.addBody(planeBody);
+  };
+
+  const wallLoad = () => {
+    // Wall
+    const wallGeometry = new THREE.BoxGeometry(1, 10, 25);
+    const wallMesh = new THREE.Mesh(wallGeometry, normalMaterial);
+    wallMesh.position.set(3, 5, 0);
+    scene.add(wallMesh);
+
+    const wallBody = new CANNON.Body({
+      mass: 0,
+      shape: new CANNON.Box(new CANNON.Vec3(0.5, 5, 12.5)),
+    });
+
+    wallBody.position.set(
+      wallMesh.position.x,
+      wallMesh.position.y,
+      wallMesh.position.z
+    );
+    world.addBody(wallBody);
   };
 
   const tmpColiObjectsLoad = () => {
@@ -226,9 +261,11 @@ const Scene = () => {
     cubeMesh.castShadow = true;
     scene.add(cubeMesh);
 
+    const cubePhysMat = new CANNON.Material();
     const cubeBody = new CANNON.Body({
       mass: 1,
       shape: new CANNON.Box(new CANNON.Vec3(0.5, 0.5, 0.5)),
+      material: cubePhysMat,
     });
     cubeBody.position.set(
       cubeMesh.position.x,
@@ -236,6 +273,13 @@ const Scene = () => {
       cubeMesh.position.z
     );
     world.addBody(cubeBody);
+
+    const groundCubeContactMat = new CANNON.ContactMaterial(
+      planePhyMaterial,
+      cubePhysMat,
+      { friction: 0.04 }
+    );
+    world.addContactMaterial(groundCubeContactMat);
 
     // Sphere
     const sphereGeometry = new THREE.SphereGeometry();
