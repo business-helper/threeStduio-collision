@@ -7,6 +7,7 @@ import * as CANNON from "cannon-es";
 import CannonUtils from "../cannon/utils/cannonUtils";
 import CannonDebugRenderer from "../cannon/utils/cannonDebugRenderer";
 import { Body, Trimesh } from "cannon-es";
+import { DragControls } from "three/examples/jsm/controls/DragControls";
 
 interface ISoldierAction {
   idleAction: THREE.AnimationAction;
@@ -37,6 +38,14 @@ const Scene = () => {
   const [normalMaterial] = useState(new THREE.MeshNormalMaterial());
   const [phongMaterial] = useState(new THREE.MeshPhongMaterial());
   const [planePhyMaterial] = useState(new CANNON.Material());
+  const [wallPhyMaterial] = useState(new CANNON.Material());
+  const [wallBody] = useState<any>(
+    new CANNON.Body({
+      mass: 0,
+      shape: new CANNON.Box(new CANNON.Vec3(0.5, 5, 12.5)),
+      material: wallPhyMaterial,
+    })
+  );
 
   const handleResize = useCallback(() => {
     if (!camera || !renderer) return;
@@ -76,7 +85,7 @@ const Scene = () => {
   };
 
   const setCameraPos = () => {
-    camera.position.set(-3, 2, 4);
+    camera.position.set(0, 5, 25);
   };
 
   const addToScene = () => {
@@ -84,10 +93,11 @@ const Scene = () => {
     world.gravity.set(0, -9.82, 0);
 
     lightLoad();
-    soliderLoad();
+    // soliderLoad();
     planeLoad();
     wallLoad();
-    tmpColiObjectsLoad();
+    characherLoad();
+    // tmpColiObjectsLoad();
   };
 
   useEffect(() => {
@@ -234,22 +244,129 @@ const Scene = () => {
 
   const wallLoad = () => {
     // Wall
+    if (!wallBody) return;
+
     const wallGeometry = new THREE.BoxGeometry(1, 10, 25);
     const wallMesh = new THREE.Mesh(wallGeometry, normalMaterial);
     wallMesh.position.set(3, 5, 0);
     scene.add(wallMesh);
-
-    const wallBody = new CANNON.Body({
-      mass: 0,
-      shape: new CANNON.Box(new CANNON.Vec3(0.5, 5, 12.5)),
-    });
-
     wallBody.position.set(
       wallMesh.position.x,
       wallMesh.position.y,
       wallMesh.position.z
     );
     world.addBody(wallBody);
+  };
+
+  const characherLoad = () => {
+    // Cylinder
+    const geometry = new THREE.CylinderGeometry(0.5, 1, 3, 16);
+    const mesh = new THREE.Mesh(geometry, normalMaterial);
+    mesh.position.x = -3;
+    mesh.position.y = 7;
+    mesh.castShadow = true;
+    scene.add(mesh);
+
+    const physMat = new CANNON.Material();
+    const body = new CANNON.Body({
+      mass: 7,
+      shape: new CANNON.Cylinder(0.5, 1, 3, 16),
+      material: physMat,
+    });
+    body.position.set(mesh.position.x, mesh.position.y, mesh.position.z);
+    world.addBody(body);
+
+    const groundCharContactMat = new CANNON.ContactMaterial(
+      planePhyMaterial,
+      physMat,
+      { friction: 0.6 }
+    );
+    world.addContactMaterial(groundCharContactMat);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.screenSpacePanning = true;
+    controls.target.y = 2;
+
+    let isDragging = false;
+    let isCollided = false;
+
+    const dragControls = new DragControls([mesh], camera, renderer.domElement);
+    dragControls.addEventListener("dragstart", function (event: THREE.Event) {
+      isDragging = true;
+      event.object.material.opacity = 0.33;
+      controls.enabled = false;
+    });
+
+    dragControls.addEventListener("dragend", function (event: THREE.Event) {
+      isDragging = false;
+      event.object.material.opacity = 1;
+      controls.enabled = true;
+      // body.velocity.set(0, 0, 0);
+      // body.angularVelocity.set(0, 0, 0);
+    });
+
+    dragControls.addEventListener("drag", function (event: any) {
+      event.object.position.y = 1.5;
+    });
+
+    body.addEventListener("collide", (event: any) => {
+      if (!wallBody) return;
+      const contact = event.contact;
+      if ([contact.bi.id, contact.bj.id].includes(wallBody.id)) {
+        isCollided = true;
+      }
+    });
+
+    const cannonDebugRenderer = new CannonDebugRenderer(scene, world);
+
+    const clock = new THREE.Clock();
+    let delta;
+
+    const animate = () => {
+      requestAnimationFrame(animate);
+      controls.update();
+      //delta = clock.getDelta()
+      delta = Math.min(clock.getDelta(), 0.1);
+      world.step(delta);
+      cannonDebugRenderer.update();
+
+      // Copy coordinates from Cannon to Three.js
+      if (isDragging) {
+        body.position.set(mesh.position.x, mesh.position.y, mesh.position.z);
+        body.quaternion.set(
+          mesh.quaternion.x,
+          mesh.quaternion.y,
+          mesh.quaternion.z,
+          mesh.quaternion.w
+        );
+        body.velocity.set(0, 0, 0);
+        body.angularVelocity.set(0, 0, 0);
+      } else {
+        mesh.position.set(body.position.x, body.position.y, body.position.z);
+        mesh.quaternion.set(
+          body.quaternion.x,
+          body.quaternion.y,
+          body.quaternion.z,
+          body.quaternion.w
+        );
+      }
+
+      if (soldier.loaded) {
+        soldier.soldierMesh?.position.set(
+          soldier.soldierBody?.position.x as number,
+          soldier.soldierBody?.position.y as number,
+          soldier.soldierBody?.position.z as number
+        );
+        soldier.soldierMesh?.quaternion.set(
+          soldier.soldierBody?.quaternion.x as number,
+          soldier.soldierBody?.quaternion.y as number,
+          soldier.soldierBody?.quaternion.z as number,
+          soldier.soldierBody?.quaternion.w as number
+        );
+      }
+      render();
+    };
+    animate();
   };
 
   const tmpColiObjectsLoad = () => {
