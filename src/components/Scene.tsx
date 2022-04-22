@@ -229,7 +229,7 @@ const Scene = () => {
 
   const planeLoad = () => {
     // Floor
-    const planeGeometry = new THREE.PlaneGeometry(50, 50);
+    const planeGeometry = new THREE.PlaneGeometry(1000, 1000);
     const planeMesh = new THREE.Mesh(planeGeometry, phongMaterial);
     planeMesh.rotateX(-Math.PI / 2);
     planeMesh.receiveShadow = true;
@@ -422,44 +422,48 @@ const Scene = () => {
     document.addEventListener("keydown", (event: any) => {
       const keyCode = event.which;
       var localVelocity = new CANNON.Vec3(0, 0, 0);
-      let accelerationX = 0,
-        accelerationZ = 0;
+      // let accelerationX = 0,
+      //   accelerationZ = 0;
       const step = 5;
       if (keyCode == 87) {
-        // body.velocity.x = 5;
-        localVelocity.x = step;
-        accelerationX = step;
+        body.velocity.x = step;
+        body.velocity.z = 0;
+        // localVelocity.x = step;
+        // accelerationX = step;
       } else if (keyCode == 83) {
-        // body.velocity.x = -5;
-        localVelocity.x = -step;
-        accelerationX = -step;
+        body.velocity.x = -step;
+        body.velocity.z = 0;
+        // localVelocity.x = -step;
+        // accelerationX = -step;
       } else if (keyCode == 65) {
-        // body.velocity.z = -5;
-        localVelocity.z = -step;
-        accelerationZ = -step;
+        body.velocity.z = -step;
+        body.velocity.x = 0;
+        // localVelocity.z = -step;
+        // accelerationZ = -step;
       } else if (keyCode == 68) {
-        // body.velocity.z = 5;
-        localVelocity.z = step;
-        accelerationZ = step;
+        body.velocity.z = step;
+        body.velocity.x = 0;
+        // localVelocity.z = step;
+        // accelerationZ = step;
       } else if (keyCode == 32) {
         body.position.set(0, 0, 0);
       }
-      if ([87, 83, 65, 68].includes(keyCode)) {
-        body.quaternion.vmult(localVelocity, body.velocity);
-        // var accelerationImpulse = new CANNON.Vec3(
-        //   accelerationX,
-        //   0,
-        //   accelerationZ
-        // );
-        // var accelerationImpulse = body.quaternion.vmult(accelerationImpulse);
-        // var bodyCenter = new CANNON.Vec3(
-        //   body.position.x,
-        //   body.position.y,
-        //   body.position.z
-        // );
-        // body.applyImpulse(accelerationImpulse, bodyCenter);
-        // updateCamera();
-      }
+      // if ([87, 83, 65, 68].includes(keyCode)) {
+      //   body.quaternion.vmult(localVelocity, body.velocity);
+      //   // var accelerationImpulse = new CANNON.Vec3(
+      //   //   accelerationX,
+      //   //   0,
+      //   //   accelerationZ
+      //   // );
+      //   // var accelerationImpulse = body.quaternion.vmult(accelerationImpulse);
+      //   // var bodyCenter = new CANNON.Vec3(
+      //   //   body.position.x,
+      //   //   body.position.y,
+      //   //   body.position.z
+      //   // );
+      //   // body.applyImpulse(accelerationImpulse, bodyCenter);
+      //   // updateCamera();
+      // }
     });
 
     const updateCamera = () => {
@@ -516,8 +520,6 @@ const Scene = () => {
           mesh.quaternion.z,
           mesh.quaternion.w
         );
-        body.velocity.set(0, 0, 0);
-        body.angularVelocity.set(0, 0, 0);
       } else {
         mesh.position.set(body.position.x, body.position.y, body.position.z);
         mesh.quaternion.set(
