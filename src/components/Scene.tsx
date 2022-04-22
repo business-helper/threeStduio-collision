@@ -91,7 +91,6 @@ const Scene = () => {
   const addToScene = () => {
     scene.add(new THREE.AxesHelper(5));
     world.gravity.set(0, -9.82, 0);
-
     lightLoad();
     // soliderLoad();
     planeLoad();
@@ -258,6 +257,21 @@ const Scene = () => {
     world.addBody(wallBody);
   };
 
+  const collisionDetectionWithWall = (targetObj: Body) => {
+    let isCollided = false;
+    for (var i = 0; i < world.contacts.length; i++) {
+      var c = world.contacts[i];
+      if (
+        [c.bi.id, c.bj.id].includes(wallBody.id) &&
+        [c.bi.id, c.bj.id].includes(targetObj.id)
+      ) {
+        isCollided = true;
+        break;
+      }
+    }
+    return isCollided;
+  };
+
   const characherLoad = () => {
     // Cylinder
     const geometry = new THREE.CylinderGeometry(0.5, 1, 3, 16);
@@ -288,7 +302,7 @@ const Scene = () => {
     controls.target.y = 2;
 
     let isDragging = false;
-    let isCollided = false;
+    let isCollidedWithWall = false;
 
     const dragControls = new DragControls([mesh], camera, renderer.domElement);
     dragControls.addEventListener("dragstart", function (event: THREE.Event) {
@@ -301,21 +315,39 @@ const Scene = () => {
       isDragging = false;
       event.object.material.opacity = 1;
       controls.enabled = true;
-      // body.velocity.set(0, 0, 0);
-      // body.angularVelocity.set(0, 0, 0);
     });
 
     dragControls.addEventListener("drag", function (event: any) {
+      // if (collisionDetectionWithWall(body)) {
+      //   isCollidedWithWall = true;
+      // }
+      if (isCollidedWithWall) {
+        event.object.position.x = wallBody.position.x - 1.51;
+      }
       event.object.position.y = 1.5;
     });
 
-    body.addEventListener("collide", (event: any) => {
-      if (!wallBody) return;
-      const contact = event.contact;
-      if ([contact.bi.id, contact.bj.id].includes(wallBody.id)) {
-        isCollided = true;
+    world.addEventListener("beginContact", (event: any) => {
+      if (collisionDetectionWithWall(body)) {
+        isCollidedWithWall = true;
       }
     });
+
+    world.addEventListener("endContact", (event: any) => {
+      if (isCollidedWithWall && !collisionDetectionWithWall(body)) {
+        setTimeout(() => {
+          isCollidedWithWall = false;
+        }, 1000);
+      }
+    });
+
+    // body.addEventListener("collide", (event: any) => {
+    //   if (!wallBody) return;
+    //   const contact = event.contact;
+    //   if ([contact.bi.id, contact.bj.id].includes(wallBody.id)) {
+    //     isCollided = true;
+    //   } else isCollided = false;
+    // });
 
     const cannonDebugRenderer = new CannonDebugRenderer(scene, world);
 
