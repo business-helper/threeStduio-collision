@@ -90,7 +90,7 @@ const Scene = () => {
 
   const setCameraPos = () => {
     camera.position.set(-25, 25, 0);
-    camera.lookAt(0, 0, 6);
+    // camera.lookAt(10, 10, 16);
   };
 
   const addToScene = () => {
@@ -304,13 +304,92 @@ const Scene = () => {
     );
     world.addContactMaterial(groundCharContactMat);
 
+    // Cube
+    const cubeGeometry = new THREE.BoxGeometry(5, 5, 5);
+    const cubeMesh = new THREE.Mesh(cubeGeometry, normalMaterial);
+    cubeMesh.position.x = -5;
+    cubeMesh.position.y = 15;
+    cubeMesh.position.z = 8;
+    cubeMesh.castShadow = true;
+    scene.add(cubeMesh);
+
+    const cubePhysMat = new CANNON.Material();
+    const cubeBody = new CANNON.Body({
+      mass: 12,
+      shape: new CANNON.Box(new CANNON.Vec3(2.5, 2.5, 2.5)),
+      material: cubePhysMat,
+    });
+    cubeBody.position.set(
+      cubeMesh.position.x,
+      cubeMesh.position.y,
+      cubeMesh.position.z
+    );
+    world.addBody(cubeBody);
+
+    const groundCubeContactMat = new CANNON.ContactMaterial(
+      planePhyMaterial,
+      cubePhysMat,
+      { friction: 0.04 }
+    );
+    world.addContactMaterial(groundCubeContactMat);
+
+    // Sphere
+    const sphereGeometry = new THREE.SphereGeometry();
+    const sphereMesh = new THREE.Mesh(sphereGeometry, normalMaterial);
+    sphereMesh.position.x = -10;
+    sphereMesh.position.y = 20;
+    sphereMesh.position.z = -8;
+    sphereMesh.castShadow = true;
+    scene.add(sphereMesh);
+
+    const sphereBody = new CANNON.Body({
+      mass: 11,
+      shape: new CANNON.Sphere(1),
+    });
+    sphereBody.position.set(
+      sphereMesh.position.x,
+      sphereMesh.position.y,
+      sphereMesh.position.z
+    );
+    world.addBody(sphereBody);
+
+    // // Icosahedron
+    // const icosahedronGeometry = new THREE.IcosahedronGeometry(1, 0);
+    // const icosahedronMesh = new THREE.Mesh(icosahedronGeometry, normalMaterial);
+    // icosahedronMesh.position.x = 1.2;
+    // icosahedronMesh.position.y = 10;
+    // icosahedronMesh.castShadow = true;
+    // scene.add(icosahedronMesh);
+
+    // const position = icosahedronMesh.geometry.attributes.position.array;
+    // const icosahedronPoints: CANNON.Vec3[] = [];
+    // for (let i = 0; i < position.length; i += 3) {
+    //   icosahedronPoints.push(
+    //     new CANNON.Vec3(position[i], position[i + 1], position[i + 2])
+    //   );
+    // }
+    // const icosahedronFaces: number[][] = [];
+    // for (let i = 0; i < position.length / 3; i += 3) {
+    //   icosahedronFaces.push([i, i + 1, i + 2]);
+    // }
+    // const icosahedronShape = new CANNON.ConvexPolyhedron({
+    //   vertices: icosahedronPoints,
+    //   faces: icosahedronFaces,
+    // });
+    // const icosahedronBody = new CANNON.Body({ mass: 1 });
+    // icosahedronBody.addShape(icosahedronShape);
+    // icosahedronBody.position.x = icosahedronMesh.position.x;
+    // icosahedronBody.position.y = icosahedronMesh.position.y;
+    // icosahedronBody.position.z = icosahedronMesh.position.z;
+    // world.addBody(icosahedronBody);
+
+    // Control Camera
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.screenSpacePanning = true;
     controls.target.y = 2;
 
     const cameraContoller = new THREE.Object3D();
     cameraContoller.add(camera);
-    const cameraTarget = new THREE.Vector3(0, 0, 6);
 
     let isDragging = false;
     let isCollidedWithWall = false;
@@ -343,33 +422,53 @@ const Scene = () => {
     document.addEventListener("keydown", (event: any) => {
       const keyCode = event.which;
       var localVelocity = new CANNON.Vec3(0, 0, 0);
+      let accelerationX = 0,
+        accelerationZ = 0;
+      const step = 5;
       if (keyCode == 87) {
         // body.velocity.x = 5;
-        localVelocity.x = 5;
+        localVelocity.x = step;
+        accelerationX = step;
       } else if (keyCode == 83) {
         // body.velocity.x = -5;
-        localVelocity.x = -5;
+        localVelocity.x = -step;
+        accelerationX = -step;
       } else if (keyCode == 65) {
         // body.velocity.z = -5;
-        localVelocity.z = -5;
+        localVelocity.z = -step;
+        accelerationZ = -step;
       } else if (keyCode == 68) {
         // body.velocity.z = 5;
-        localVelocity.z = 5;
+        localVelocity.z = step;
+        accelerationZ = step;
       } else if (keyCode == 32) {
         body.position.set(0, 0, 0);
       }
       if ([87, 83, 65, 68].includes(keyCode)) {
         body.quaternion.vmult(localVelocity, body.velocity);
+        // var accelerationImpulse = new CANNON.Vec3(
+        //   accelerationX,
+        //   0,
+        //   accelerationZ
+        // );
+        // var accelerationImpulse = body.quaternion.vmult(accelerationImpulse);
+        // var bodyCenter = new CANNON.Vec3(
+        //   body.position.x,
+        //   body.position.y,
+        //   body.position.z
+        // );
+        // body.applyImpulse(accelerationImpulse, bodyCenter);
+        // updateCamera();
       }
     });
 
-    // const updateCamera = () => {
-    //   cameraContoller.position.copy(body.position as any);
-    //   cameraContoller.position.y = 0;
-    //   this.cameraTarget.copy(this.plane.position);
-    //   this.cameraTarget.z += 6;
-    //   this.camera.lookAt(this.cameraTarget);
-    // };
+    const updateCamera = () => {
+      cameraContoller.position.copy(body.position as any);
+      // controls.target.x = body.position.x;
+      // cameraContoller.position.y = 0;
+      // cameraTarget.z += 6;
+      // camera.lookAt(cameraTarget);
+    };
 
     world.addEventListener("beginContact", (event: any) => {
       if (collisionDetectionWithWall(body)) {
@@ -401,6 +500,8 @@ const Scene = () => {
     const animate = () => {
       requestAnimationFrame(animate);
       controls.update();
+
+      updateCamera();
       //delta = clock.getDelta()
       delta = Math.min(clock.getDelta(), 0.1);
       world.step(delta);
@@ -426,6 +527,40 @@ const Scene = () => {
           body.quaternion.w
         );
       }
+
+      cubeMesh.position.set(
+        cubeBody.position.x,
+        cubeBody.position.y,
+        cubeBody.position.z
+      );
+      cubeMesh.quaternion.set(
+        cubeBody.quaternion.x,
+        cubeBody.quaternion.y,
+        cubeBody.quaternion.z,
+        cubeBody.quaternion.w
+      );
+      sphereMesh.position.set(
+        sphereBody.position.x,
+        sphereBody.position.y,
+        sphereBody.position.z
+      );
+      sphereMesh.quaternion.set(
+        sphereBody.quaternion.x,
+        sphereBody.quaternion.y,
+        sphereBody.quaternion.z,
+        sphereBody.quaternion.w
+      );
+      // icosahedronMesh.position.set(
+      //   icosahedronBody.position.x,
+      //   icosahedronBody.position.y,
+      //   icosahedronBody.position.z
+      // );
+      // icosahedronMesh.quaternion.set(
+      //   icosahedronBody.quaternion.x,
+      //   icosahedronBody.quaternion.y,
+      //   icosahedronBody.quaternion.z,
+      //   icosahedronBody.quaternion.w
+      // );
 
       if (soldier.loaded) {
         soldier.soldierMesh?.position.set(
