@@ -79,13 +79,18 @@ const Scene = () => {
     );
   }, [canvasRef]);
 
+  const configScene = () => {
+    scene.background = new THREE.Color(0xaaaaaa);
+  };
+
   const configRenderer = () => {
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   };
 
   const setCameraPos = () => {
-    camera.position.set(0, 5, 25);
+    camera.position.set(-25, 25, 0);
+    camera.lookAt(0, 0, 6);
   };
 
   const addToScene = () => {
@@ -102,6 +107,7 @@ const Scene = () => {
   useEffect(() => {
     if (!renderer || !camera) return;
     handleResize();
+    configScene();
     configRenderer();
     setCameraPos();
     addToScene();
@@ -223,7 +229,7 @@ const Scene = () => {
 
   const planeLoad = () => {
     // Floor
-    const planeGeometry = new THREE.PlaneGeometry(25, 25);
+    const planeGeometry = new THREE.PlaneGeometry(50, 50);
     const planeMesh = new THREE.Mesh(planeGeometry, phongMaterial);
     planeMesh.rotateX(-Math.PI / 2);
     planeMesh.receiveShadow = true;
@@ -231,7 +237,8 @@ const Scene = () => {
 
     const planeBody = new CANNON.Body({
       mass: 0,
-      shape: new CANNON.Box(new CANNON.Vec3(12.5, 12.5, 0.1)),
+      // shape: new CANNON.Box(new CANNON.Vec3(25, 25, 0.1)),
+      shape: new CANNON.Plane(),
       material: planePhyMaterial,
     });
     planeBody.quaternion.setFromAxisAngle(
@@ -247,7 +254,7 @@ const Scene = () => {
 
     const wallGeometry = new THREE.BoxGeometry(1, 10, 25);
     const wallMesh = new THREE.Mesh(wallGeometry, normalMaterial);
-    wallMesh.position.set(3, 5, 0);
+    wallMesh.position.set(10, 5, 0);
     scene.add(wallMesh);
     wallBody.position.set(
       wallMesh.position.x,
@@ -274,7 +281,7 @@ const Scene = () => {
 
   const characherLoad = () => {
     // Cylinder
-    const geometry = new THREE.CylinderGeometry(0.5, 1, 3, 16);
+    const geometry = new THREE.CylinderGeometry(0.5, 5, 3, 16);
     const mesh = new THREE.Mesh(geometry, normalMaterial);
     mesh.position.x = -3;
     mesh.position.y = 7;
@@ -283,8 +290,8 @@ const Scene = () => {
 
     const physMat = new CANNON.Material();
     const body = new CANNON.Body({
-      mass: 7,
-      shape: new CANNON.Cylinder(0.5, 1, 3, 16),
+      mass: 10,
+      shape: new CANNON.Cylinder(0.5, 5, 3, 16),
       material: physMat,
     });
     body.position.set(mesh.position.x, mesh.position.y, mesh.position.z);
@@ -293,7 +300,7 @@ const Scene = () => {
     const groundCharContactMat = new CANNON.ContactMaterial(
       planePhyMaterial,
       physMat,
-      { friction: 0.6 }
+      { friction: 0 }
     );
     world.addContactMaterial(groundCharContactMat);
 
@@ -301,31 +308,68 @@ const Scene = () => {
     controls.screenSpacePanning = true;
     controls.target.y = 2;
 
+    const cameraContoller = new THREE.Object3D();
+    cameraContoller.add(camera);
+    const cameraTarget = new THREE.Vector3(0, 0, 6);
+
     let isDragging = false;
     let isCollidedWithWall = false;
 
-    const dragControls = new DragControls([mesh], camera, renderer.domElement);
-    dragControls.addEventListener("dragstart", function (event: THREE.Event) {
-      isDragging = true;
-      event.object.material.opacity = 0.33;
-      controls.enabled = false;
-    });
+    // const dragControls = new DragControls([mesh], camera, renderer.domElement);
+    // dragControls.addEventListener("dragstart", function (event: THREE.Event) {
+    //   isDragging = true;
+    //   event.object.material.opacity = 0.33;
+    //   controls.enabled = false;
+    // });
 
-    dragControls.addEventListener("dragend", function (event: THREE.Event) {
-      isDragging = false;
-      event.object.material.opacity = 1;
-      controls.enabled = true;
-    });
+    // dragControls.addEventListener("dragend", function (event: THREE.Event) {
+    //   isDragging = false;
+    //   event.object.material.opacity = 1;
+    //   controls.enabled = true;
+    // });
 
-    dragControls.addEventListener("drag", function (event: any) {
-      // if (collisionDetectionWithWall(body)) {
-      //   isCollidedWithWall = true;
-      // }
-      if (isCollidedWithWall) {
-        event.object.position.x = wallBody.position.x - 1.51;
+    // dragControls.addEventListener("drag", function (event: any) {
+    //   // if (collisionDetectionWithWall(body)) {
+    //   //   isCollidedWithWall = true;
+    //   // }
+    //   if (isCollidedWithWall) {
+    //     // if (event.object.position.x >= wallBody.position.x - 1.5)
+    //     event.object.position.x = wallBody.position.x - 1.51;
+    //     // if (event.object.position.x <= wallBody.position.x + 1.5)
+    //   }
+    //   event.object.position.y = 1.5;
+    // });
+
+    document.addEventListener("keydown", (event: any) => {
+      const keyCode = event.which;
+      var localVelocity = new CANNON.Vec3(0, 0, 0);
+      if (keyCode == 87) {
+        // body.velocity.x = 5;
+        localVelocity.x = 5;
+      } else if (keyCode == 83) {
+        // body.velocity.x = -5;
+        localVelocity.x = -5;
+      } else if (keyCode == 65) {
+        // body.velocity.z = -5;
+        localVelocity.z = -5;
+      } else if (keyCode == 68) {
+        // body.velocity.z = 5;
+        localVelocity.z = 5;
+      } else if (keyCode == 32) {
+        body.position.set(0, 0, 0);
       }
-      event.object.position.y = 1.5;
+      if ([87, 83, 65, 68].includes(keyCode)) {
+        body.quaternion.vmult(localVelocity, body.velocity);
+      }
     });
+
+    // const updateCamera = () => {
+    //   cameraContoller.position.copy(body.position as any);
+    //   cameraContoller.position.y = 0;
+    //   this.cameraTarget.copy(this.plane.position);
+    //   this.cameraTarget.z += 6;
+    //   this.camera.lookAt(this.cameraTarget);
+    // };
 
     world.addEventListener("beginContact", (event: any) => {
       if (collisionDetectionWithWall(body)) {
