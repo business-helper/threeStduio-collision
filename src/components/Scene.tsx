@@ -131,7 +131,7 @@ const Scene = () => {
     const animate = () => {
       requestAnimationFrame(animate);
       controls.update();
-      updateCamera(cameraController, soldier.solderBody);
+      // updateCamera(cameraController, soldier.solderBody);
       delta = Math.min(clock.getDelta(), 0.1);
       world.step(delta);
       cannonDebugRenderer.update();
@@ -269,40 +269,26 @@ const Scene = () => {
     };
   };
 
-  function createFromIndexed(geometry: THREE.BufferGeometry) {
-    geometry.deleteAttribute("normal");
-    //if not planning on putting textures on the mesh, you can delete the uv mapping for better vertice merging
-    geometry.deleteAttribute("uv");
-    // geometry = THREE.BufferGeometryUtils.mergeVertices(geometry);
-    let position = geometry.attributes.position.array;
-    const geomIndex: any = geometry.index;
-    let geomFaces = geomIndex.array;
-    const points = [];
-    const faces: number[][] = [];
-    for (var i = 0; i < position.length; i += 3) {
-      points.push(
-        new CANNON.Vec3(position[i], position[i + 1], position[i + 2])
-      );
-    }
-    for (var i = 0; i < geomFaces.length; i += 6) {
-      faces.push([geomFaces[i], geomFaces[i + 1], geomFaces[i + 2]]);
-    }
-    return new CANNON.ConvexPolyhedron({
-      vertices: points,
-      faces,
-    });
-  }
-
   const soliderLoad = async () => {
     const gltf: any = await gltfLoad("/assets/Cat.glb");
     const model = gltf.scene;
-    // model.position.set(-2, 15, 0);
-    // const animations = gltf.animations;
-    // const mixer = new THREE.AnimationMixer(model);
-
-    const mesh = model.children[0] as THREE.Mesh;
+    // model.scale.set(0.06, 0.06, 0.06);
+    let mesh: any = null;
+    // const mesh = model.children[0] as THREE.Mesh;
+    // let geometry: any = null;
+    model.traverse(function (object: any) {
+      if (object instanceof THREE.Mesh) {
+        // geometry = object.geometry;
+        if (!mesh) mesh = object;
+        // object.castShadow = true;
+      }
+    });
+    // console.log(mesh);
+    // // model.position.set(-2, 15, 0);
+    // // const animations = gltf.animations;
+    // // const mixer = new THREE.AnimationMixer(model);
     mesh.scale.set(1, 1, 1);
-    mesh.position.set(-15, 10, 0);
+    mesh.position.set(-7, 10, 0);
     mesh.castShadow = true;
     scene.add(mesh);
 
@@ -310,12 +296,12 @@ const Scene = () => {
 
     // const body = new CANNON.Body({
     //   mass: 18,
-    //   shape: CannonUtils.CreateTrimesh((mesh as THREE.Mesh).geometry),
+    //   shape: CannonUtils.CreateTrimesh(mesh.geometry),
     // });
     // body.position.set(mesh.position.x, mesh.position.y, mesh.position.z);
     // world.addBody(body);
 
-    // const positions = mesh.geometry.attributes.position.array;
+    // const positions = geometry.attributes.position.array;
     // const points: THREE.Vector3[] = [];
     // for (let i = 0; i < positions.length; i += 3) {
     //   points.push(
@@ -323,25 +309,22 @@ const Scene = () => {
     //   );
     // }
     // const convexHull = new ConvexGeometry(points);
-
+    // const body = new CANNON.Body({
+    //   mass: 18,
+    //   shape: CannonUtils.CreateConvexPolyhedron(convexHull),
+    // });
     const body = new CANNON.Body({
       mass: 18,
-      shape: createFromIndexed(mesh.geometry),
+      shape: CannonUtils.createFromIndexed(mesh.geometry),
+      // shape: CannonUtils.CreateConvexPolyhedron(mesh.geometry),
     });
 
     body.position.set(mesh.position.x, mesh.position.y, mesh.position.z);
     world.addBody(body);
 
-    // model.traverse(function (object: any) {
-    //   if (object instanceof THREE.Mesh) {
-    //     // const geometry = new THREE.BufferGeometry(object.geometry);
-    //     object.castShadow = true;
-    //   }
-    // });
-
     document.addEventListener("keydown", (event: any) => {
       const keyCode = event.which;
-      const step = 5;
+      const step = 15;
       if (keyCode === 87) {
         body.velocity.x = step;
         body.velocity.z = 0;
@@ -393,6 +376,7 @@ const Scene = () => {
     const cylBody = new CANNON.Body({
       mass: 10,
       shape: new CANNON.Cylinder(0.5, 5, 3, 16),
+      // shape: CannonUtils.CreateTrimesh(cylGeometry),
       material: physMat,
     });
     cylBody.position.set(
@@ -412,9 +396,9 @@ const Scene = () => {
     // Cube
     const cubeGeometry = new THREE.BoxGeometry(5, 5, 5);
     const cubeMesh = new THREE.Mesh(cubeGeometry, normalMaterial);
-    cubeMesh.position.x = -5;
+    cubeMesh.position.x = -3;
     cubeMesh.position.y = 15;
-    cubeMesh.position.z = 8;
+    cubeMesh.position.z = 6;
     cubeMesh.castShadow = true;
     scene.add(cubeMesh);
 
@@ -422,6 +406,7 @@ const Scene = () => {
     const cubeBody = new CANNON.Body({
       mass: 12,
       shape: new CANNON.Box(new CANNON.Vec3(2.5, 2.5, 2.5)),
+      // shape: CannonUtils.CreateTrimesh(cubeGeometry),
       material: cubePhysMat,
     });
     cubeBody.position.set(
@@ -450,6 +435,7 @@ const Scene = () => {
     const sphereBody = new CANNON.Body({
       mass: 11,
       shape: new CANNON.Sphere(1),
+      // shape: CannonUtils.CreateTrimesh(sphereGeometry),
     });
     sphereBody.position.set(
       sphereMesh.position.x,
