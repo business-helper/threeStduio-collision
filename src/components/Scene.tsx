@@ -280,12 +280,15 @@ const Scene = () => {
       boundingBox.max,
       boundingBox.min
     );
+
+    const physMat = new CANNON.Material();
     const body = new CANNON.Body({
       mass: 18,
       shape: new CANNON.Box(
         new CANNON.Vec3(dimensions.x / 2, dimensions.y / 2, dimensions.z / 2)
       ),
       fixedRotation: true,
+      material: physMat,
     });
     body.position.set(
       model.position.x,
@@ -295,6 +298,12 @@ const Scene = () => {
 
     scene.add(model);
     world.addBody(body);
+    const groundSoldierContactMat = new CANNON.ContactMaterial(
+      planePhyMaterial,
+      physMat,
+      { friction: 0.02 }
+    );
+    world.addContactMaterial(groundSoldierContactMat);
 
     document.addEventListener("keydown", (event: any) => {
       const keyCode = event.which;
