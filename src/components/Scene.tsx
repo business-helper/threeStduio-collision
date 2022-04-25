@@ -270,7 +270,7 @@ const Scene = () => {
   };
 
   const soliderLoad = async () => {
-    const gltf: any = await gltfLoad("/assets/Cat.glb");
+    const gltf: any = await gltfLoad("/assets/Box.gltf");
     const model = gltf.scene;
     // model.scale.set(0.06, 0.06, 0.06);
     let mesh: any = null;
@@ -301,23 +301,22 @@ const Scene = () => {
     // body.position.set(mesh.position.x, mesh.position.y, mesh.position.z);
     // world.addBody(body);
 
-    // const positions = geometry.attributes.position.array;
-    // const points: THREE.Vector3[] = [];
-    // for (let i = 0; i < positions.length; i += 3) {
-    //   points.push(
-    //     new THREE.Vector3(positions[i], positions[i + 1], positions[i + 2])
-    //   );
-    // }
-    // const convexHull = new ConvexGeometry(points);
-    // const body = new CANNON.Body({
-    //   mass: 18,
-    //   shape: CannonUtils.CreateConvexPolyhedron(convexHull),
-    // });
+    const positions = mesh.geometry.attributes.position.array;
+    const points: THREE.Vector3[] = [];
+    for (let i = 0; i < positions.length; i += 3) {
+      points.push(
+        new THREE.Vector3(positions[i], positions[i + 1], positions[i + 2])
+      );
+    }
+    const convexHull = new ConvexGeometry(points);
     const body = new CANNON.Body({
       mass: 18,
-      shape: CannonUtils.createFromIndexed(mesh.geometry),
-      // shape: CannonUtils.CreateConvexPolyhedron(mesh.geometry),
+      shape: CannonUtils.CreateConvexPolyhedron(convexHull),
     });
+    // const body = new CANNON.Body({
+    //   mass: 18,
+    //   shape: CannonUtils.createFromIndexed(mesh.geometry),
+    // });
 
     body.position.set(mesh.position.x, mesh.position.y, mesh.position.z);
     world.addBody(body);
