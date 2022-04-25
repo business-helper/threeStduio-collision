@@ -131,35 +131,35 @@ const Scene = () => {
     const animate = () => {
       requestAnimationFrame(animate);
       controls.update();
-      // updateCamera(cameraController, soldier.solderBody);
+      updateCamera(cameraController, soldier.body);
       delta = Math.min(clock.getDelta(), 0.1);
       world.step(delta);
       cannonDebugRenderer.update();
 
       // Copy coordinates from Cannon to Three.js
       if (isDragging) {
-        soldier.solderBody.position.set(
-          soldier.soldierMesh.position.x,
-          soldier.soldierMesh.position.y,
-          soldier.soldierMesh.position.z
+        soldier.body.position.set(
+          soldier.model.position.x,
+          soldier.model.position.y,
+          soldier.model.position.z
         );
-        soldier.solderBody.quaternion.set(
-          soldier.soldierMesh.quaternion.x,
-          soldier.soldierMesh.quaternion.y,
-          soldier.soldierMesh.quaternion.z,
-          soldier.soldierMesh.quaternion.w
+        soldier.model.quaternion.set(
+          soldier.model.quaternion.x,
+          soldier.model.quaternion.y,
+          soldier.model.quaternion.z,
+          soldier.model.quaternion.w
         );
       } else {
-        soldier.soldierMesh.position.set(
-          soldier.solderBody.position.x as number,
-          soldier.solderBody.position.y as number,
-          soldier.solderBody.position.z as number
+        soldier.model.position.set(
+          soldier.body.position.x as number,
+          (soldier.body.position.y as number) - soldier.dimensions.y / 2,
+          soldier.body.position.z as number
         );
-        soldier.soldierMesh.quaternion.set(
-          soldier.solderBody.quaternion.x as number,
-          soldier.solderBody.quaternion.y as number,
-          soldier.solderBody.quaternion.z as number,
-          soldier.solderBody.quaternion.w as number
+        soldier.model.quaternion.set(
+          soldier.body.quaternion.x as number,
+          soldier.body.quaternion.y as number,
+          soldier.body.quaternion.z as number,
+          soldier.body.quaternion.w as number
         );
       }
 
@@ -270,55 +270,30 @@ const Scene = () => {
   };
 
   const soliderLoad = async () => {
-    const gltf: any = await gltfLoad("/assets/Box.gltf");
+    const gltf: any = await gltfLoad("/assets/Soldier.glb");
     const model = gltf.scene;
-    // model.scale.set(0.06, 0.06, 0.06);
-    let mesh: any = null;
-    // const mesh = model.children[0] as THREE.Mesh;
-    // let geometry: any = null;
-    model.traverse(function (object: any) {
-      if (object instanceof THREE.Mesh) {
-        // geometry = object.geometry;
-        if (!mesh) mesh = object;
-        // object.castShadow = true;
-      }
-    });
-    // console.log(mesh);
-    // // model.position.set(-2, 15, 0);
-    // // const animations = gltf.animations;
-    // // const mixer = new THREE.AnimationMixer(model);
-    mesh.scale.set(1, 1, 1);
-    mesh.position.set(-7, 10, 0);
-    mesh.castShadow = true;
-    scene.add(mesh);
+    // model.scale.set(0.1, 0.1, 0.1);
+    model.position.set(-10, 15, 0);
 
-    // createFromIndexed(mesh.geometry);
-
-    // const body = new CANNON.Body({
-    //   mass: 18,
-    //   shape: CannonUtils.CreateTrimesh(mesh.geometry),
-    // });
-    // body.position.set(mesh.position.x, mesh.position.y, mesh.position.z);
-    // world.addBody(body);
-
-    const positions = mesh.geometry.attributes.position.array;
-    const points: THREE.Vector3[] = [];
-    for (let i = 0; i < positions.length; i += 3) {
-      points.push(
-        new THREE.Vector3(positions[i], positions[i + 1], positions[i + 2])
-      );
-    }
-    const convexHull = new ConvexGeometry(points);
+    const boundingBox = new THREE.Box3().setFromObject(model);
+    const dimensions = new THREE.Vector3().subVectors(
+      boundingBox.max,
+      boundingBox.min
+    );
     const body = new CANNON.Body({
       mass: 18,
-      shape: CannonUtils.CreateConvexPolyhedron(convexHull),
+      shape: new CANNON.Box(
+        new CANNON.Vec3(dimensions.x / 2, dimensions.y / 2, dimensions.z / 2)
+      ),
+      fixedRotation: true,
     });
-    // const body = new CANNON.Body({
-    //   mass: 18,
-    //   shape: CannonUtils.createFromIndexed(mesh.geometry),
-    // });
+    body.position.set(
+      model.position.x,
+      model.position.y + dimensions.y / 2,
+      model.position.z
+    );
 
-    body.position.set(mesh.position.x, mesh.position.y, mesh.position.z);
+    scene.add(model);
     world.addBody(body);
 
     document.addEventListener("keydown", (event: any) => {
@@ -342,8 +317,9 @@ const Scene = () => {
     });
 
     return {
-      soldierMesh: mesh,
-      solderBody: body,
+      model,
+      body,
+      dimensions,
     };
   };
 
