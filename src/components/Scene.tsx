@@ -116,10 +116,10 @@ const Scene = () => {
   const addToScene = async () => {
     axisHelper();
     lightLoad();
-    const { planeGeometry, planeMesh, planeBody } = planeLoad();
-    const { wallGeometry, wallMesh, wallBody } = wallLoad();
+    planeLoad();
+    const { wallBody } = wallLoad();
     const soldier = await soliderLoad();
-    const { cylinder, cube, sphere } = characherLoad(wallBody);
+    const { cylinder, cube, sphere } = characherLoad();
 
     //----------------------------------animate-----------------------------------
     const controls = getCameraControlls();
@@ -135,8 +135,8 @@ const Scene = () => {
       delta = Math.min(clock.getDelta(), 0.1);
       world.step(delta);
       cannonDebugRenderer.update();
+      soldier.mixer.update(delta);
 
-      // Copy coordinates from Cannon to Three.js
       if (isDragging) {
         soldier.body.position.set(
           soldier.model.position.x,
@@ -149,7 +149,11 @@ const Scene = () => {
           soldier.model.quaternion.z,
           soldier.model.quaternion.w
         );
+        // soldier.model.rotation.set(0, Math.PI / 2, 0);
       } else {
+        // world.removeBody(soldier.body);
+        // const newSoldier = getBoundingPhysicsBody(soldier.model);
+        // soldier.body = newSoldier.body;
         soldier.model.position.set(
           soldier.body.position.x as number,
           (soldier.body.position.y as number) - soldier.dimensions.y / 2,
@@ -163,6 +167,7 @@ const Scene = () => {
         );
       }
 
+      // Copy coordinates from Cannon to Three.js
       cylinder.cylMesh.position.set(
         cylinder.cylBody.position.x,
         cylinder.cylBody.position.y,
@@ -174,7 +179,6 @@ const Scene = () => {
         cylinder.cylBody.quaternion.z,
         cylinder.cylBody.quaternion.w
       );
-
       cube.cubeMesh.position.set(
         cube.cubeBody.position.x,
         cube.cubeBody.position.y,
@@ -197,6 +201,7 @@ const Scene = () => {
         sphere.sphereBody.quaternion.z,
         sphere.sphereBody.quaternion.w
       );
+
       render();
     };
 
@@ -269,21 +274,46 @@ const Scene = () => {
     };
   };
 
-  const soliderLoad = async () => {
-    const gltf: any = await gltfLoad("/assets/Soldier.glb");
-    const model = gltf.scene;
-    // model.scale.set(0.1, 0.1, 0.1);
-    model.position.set(-10, 15, 0);
+  const setWeight = (action: THREE.AnimationAction, weight: number) => {
+    action.enabled = true;
+    action.setEffectiveTimeScale(1);
+    action.setEffectiveWeight(weight);
+  };
 
+  const activateAllActions = (actions: THREE.AnimationAction[]) => {
+    setWeight(actions[0], 0);
+    setWeight(actions[1], 1);
+    setWeight(actions[2], 0);
+
+    actions.forEach(function (action) {
+      action.play();
+    });
+  };
+
+  const getBoundingPhysicsBody = (model: any) => {
     const boundingBox = new THREE.Box3().setFromObject(model);
     const dimensions = new THREE.Vector3().subVectors(
       boundingBox.max,
       boundingBox.min
     );
+    // const boxGeo = new THREE.BoxBufferGeometry(
+    //   dimensions.x,
+    //   dimensions.y,
+    //   dimensions.z
+    // );
+    // const matrix = new THREE.Matrix4().setPosition(
+    //   dimensions
+    //     .addVectors(boundingBox.min, boundingBox.max)
+    //     .multiplyScalar(0.5)
+    // );
+    // boxGeo.applyMatrix4(matrix);
+    // var bomesh = new THREE.Mesh(boxGeo);
+    // bomesh.position.set(model.position.x, model.position.y, model.position.z);
+    // scene.add(bomesh);
 
     const physMat = new CANNON.Material();
     const body = new CANNON.Body({
-      mass: 18,
+      mass: 78,
       shape: new CANNON.Box(
         new CANNON.Vec3(dimensions.x / 2, dimensions.y / 2, dimensions.z / 2)
       ),
@@ -295,16 +325,44 @@ const Scene = () => {
       model.position.y + dimensions.y / 2,
       model.position.z
     );
-
-    scene.add(model);
-    world.addBody(body);
     const groundSoldierContactMat = new CANNON.ContactMaterial(
       planePhyMaterial,
       physMat,
       { friction: 0.02 }
     );
+    world.addBody(body);
     world.addContactMaterial(groundSoldierContactMat);
 
+    return {
+      dimensions,
+      body,
+    };
+  };
+
+  const soliderLoad = async () => {
+    const gltf: any = await gltfLoad("/assets/Soldier.glb");
+    const model = gltf.scene;
+    // model.scale.set(0.1, 0.1, 0.1);
+    // model.rotation.set(0, Math.PI / 2, 0);
+    model.rotateY(-Math.PI / 2);
+    model.position.set(-10, 15, 0);
+    model.traverse(function (object: any) {
+      if (object.isMesh) object.castShadow = true;
+    });
+    const animations = gltf.animations;
+    const mixer = new THREE.AnimationMixer(model);
+
+    const idleAction = mixer.clipAction(animations[0]);
+    const walkAction = mixer.clipAction(animations[3]);
+    const runAction = mixer.clipAction(animations[1]);
+    const actions = [idleAction, walkAction, runAction];
+    activateAllActions(actions);
+    scene.add(model);
+
+    // Get Bounding Box and set physics
+    const { body, dimensions } = getBoundingPhysicsBody(model);
+
+    // Key Controll
     document.addEventListener("keydown", (event: any) => {
       const keyCode = event.which;
       const step = 15;
@@ -329,6 +387,11 @@ const Scene = () => {
       model,
       body,
       dimensions,
+      mixer,
+      actions,
+      idleAction,
+      walkAction,
+      runAction,
     };
   };
 
@@ -347,7 +410,7 @@ const Scene = () => {
     return isCollided;
   };
 
-  const characherLoad = (wallBody: Body) => {
+  const characherLoad = () => {
     // Cylinder
     const cylGeometry = new THREE.CylinderGeometry(0.5, 5, 3, 16);
     const cylMesh = new THREE.Mesh(cylGeometry, normalMaterial);
@@ -358,9 +421,8 @@ const Scene = () => {
 
     const physMat = new CANNON.Material();
     const cylBody = new CANNON.Body({
-      mass: 10,
+      mass: 1000,
       shape: new CANNON.Cylinder(0.5, 5, 3, 16),
-      // shape: CannonUtils.CreateTrimesh(cylGeometry),
       material: physMat,
     });
     cylBody.position.set(
@@ -369,11 +431,10 @@ const Scene = () => {
       cylMesh.position.z
     );
     world.addBody(cylBody);
-
     const groundCharContactMat = new CANNON.ContactMaterial(
       planePhyMaterial,
       physMat,
-      { friction: 0 }
+      {}
     );
     world.addContactMaterial(groundCharContactMat);
 
@@ -382,15 +443,14 @@ const Scene = () => {
     const cubeMesh = new THREE.Mesh(cubeGeometry, normalMaterial);
     cubeMesh.position.x = -3;
     cubeMesh.position.y = 15;
-    cubeMesh.position.z = 6;
+    cubeMesh.position.z = 9;
     cubeMesh.castShadow = true;
     scene.add(cubeMesh);
 
     const cubePhysMat = new CANNON.Material();
     const cubeBody = new CANNON.Body({
-      mass: 12,
+      mass: 1200,
       shape: new CANNON.Box(new CANNON.Vec3(2.5, 2.5, 2.5)),
-      // shape: CannonUtils.CreateTrimesh(cubeGeometry),
       material: cubePhysMat,
     });
     cubeBody.position.set(
@@ -399,11 +459,10 @@ const Scene = () => {
       cubeMesh.position.z
     );
     world.addBody(cubeBody);
-
     const groundCubeContactMat = new CANNON.ContactMaterial(
       planePhyMaterial,
       cubePhysMat,
-      { friction: 0.04 }
+      {}
     );
     world.addContactMaterial(groundCubeContactMat);
 
@@ -416,10 +475,10 @@ const Scene = () => {
     sphereMesh.castShadow = true;
     scene.add(sphereMesh);
 
+    const spherePhysMat = new CANNON.Material();
     const sphereBody = new CANNON.Body({
-      mass: 11,
+      mass: 670,
       shape: new CANNON.Sphere(1),
-      // shape: CannonUtils.CreateTrimesh(sphereGeometry),
     });
     sphereBody.position.set(
       sphereMesh.position.x,
@@ -427,6 +486,12 @@ const Scene = () => {
       sphereMesh.position.z
     );
     world.addBody(sphereBody);
+    const sphereCubeContactMat = new CANNON.ContactMaterial(
+      planePhyMaterial,
+      spherePhysMat,
+      {}
+    );
+    world.addContactMaterial(sphereCubeContactMat);
 
     // let isCollidedWithWall = false;
     // const dragControls = new DragControls([mesh], camera, renderer.domElement);
