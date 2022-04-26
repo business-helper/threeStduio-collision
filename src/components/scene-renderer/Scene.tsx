@@ -3,38 +3,28 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 import * as CANNON from "cannon-es";
+import { useResizeDetector } from "react-resize-detector";
 import CannonDebugRenderer from "../../cannon/utils/cannonDebugRenderer";
 import { Body } from "cannon-es";
 import { DragControls } from "three/examples/jsm/controls/DragControls";
 import { Droppable } from "react-beautiful-dnd";
 import { useDispatch, useSelector } from "react-redux";
 import { ModelControl } from "../../service";
+import {
+  DESELECT_MODEL,
+  SELECT_MODEL,
+  UPDATE_MODEL,
+} from "../../store/actions";
+import { Model } from "../../store/modelReducer";
+import { Raycaster, Vector2, Vector3 } from "three";
+import React from "react";
 
-const Scene = () => {
-  const modelRedx = useSelector((state: any) => state.model);
-  const [controlEvent, setControlEvent] = useState<ModelControl>({
-    show_model: true,
-    show_skt: false,
-    activate_all: true,
-    continue_model: true,
-    single_step: {
-      enabled: false,
-      event: false,
-      size_of_next: 0.05,
-    },
-  });
-  const dispatch = useDispatch();
+const CanvasScene = (props: any) => {
+  const { modelRedx } = props;
 
-  const canvasRef = useRef<any>();
+  const { width, height, ref } = useResizeDetector();
   const [renderer, setRenderer] = useState<any>(null);
-  const [camera] = useState<any>(
-    new THREE.PerspectiveCamera(
-      75,
-      window.innerWidth / window.innerHeight,
-      0.1,
-      1000
-    )
-  );
+  const [camera, setCamera] = useState<any>();
   const [scene] = useState(new THREE.Scene());
   const [world] = useState(new CANNON.World());
   const [normalMaterial] = useState(new THREE.MeshNormalMaterial());
@@ -43,29 +33,39 @@ const Scene = () => {
   const [wallPhyMaterial] = useState(new CANNON.Material());
   const [clock] = useState(new THREE.Clock());
 
+  useEffect(() => {
+    // TODO
+    // update Canvas fully
+  }, [modelRedx]);
+
   const handleResize = useCallback(() => {
-    if (!renderer) return;
-    camera.aspect = window.innerWidth / window.innerHeight;
+    if (!renderer || !ref || !camera) return;
+    camera.aspect = (width as number) / (height as number);
     camera.updateProjectionMatrix();
-    renderer?.setSize(window.innerWidth, window.innerHeight);
+    renderer?.setSize(width, height);
     render();
-  }, [renderer]);
+  }, [renderer, ref, camera, width, height]);
 
   useEffect(() => {
-    window.addEventListener("resize", handleResize, false);
-    return () => {
-      window.removeEventListener("resize", handleResize);
-    };
-  }, [handleResize]);
+    handleResize();
+  }, [width, height]);
 
   useEffect(() => {
-    if (!canvasRef) return;
+    if (!ref) return;
     setRenderer(
       new THREE.WebGLRenderer({
-        canvas: canvasRef.current,
+        canvas: ref.current,
       })
     );
-  }, [canvasRef]);
+    setCamera(
+      new THREE.PerspectiveCamera(
+        75,
+        (width as number) / (height as number),
+        0.1,
+        1000
+      )
+    );
+  }, [ref]);
 
   const configScene = () => {
     scene.background = new THREE.Color(0xaaaaaa);
@@ -103,7 +103,7 @@ const Scene = () => {
   };
 
   const updateCamera = (cameraContoller: any, characterBody: Body) => {
-    // cameraContoller.position.copy(characterBody.position as any);
+    cameraContoller.position.copy(characterBody.position as any);
   };
 
   const gltfLoad = async (url: string) => {
@@ -119,101 +119,196 @@ const Scene = () => {
     configWorld();
     setCameraPos();
 
-    addToScene();
-  }, [renderer]);
+    renderModelObjs();
+    // addToScene();
+  }, [renderer, modelRedx]);
 
-  const addToScene = async () => {
+  const cacluate3DPosFrom2DPos = (pos2: any) => {
+    const vec3 = new Vector3();
+    const pos3 = new Vector3();
+    const mouse = new Vector2();
+    mouse.set(
+      (pos2.x / (width as number)) * 2 - 1,
+      -(pos2.y / (height as number)) * 2 + 1
+    );
+    camera.updateMatrixWorld();
+    var raycaster = new Raycaster();
+    raycaster.setFromCamera(mouse, camera);
+    var intersects = raycaster.intersectObjects(scene.children);
+    if (intersects.length > 0) {
+      vec3.copy(intersects[0].point);
+    }
+    vec3.sub(camera.position).normalize();
+    var distance = (15 - camera.position.y) / vec3.y;
+    pos3.copy(camera.position).add(vec3.multiplyScalar(distance));
+    return pos3;
+  };
+
+  const renderModelObjs = async () => {
     axisHelper();
     lightLoad();
     planeLoad();
-    const { wallBody } = wallLoad();
-    const soldier = await soliderLoad();
-    const { cylinder, cube, sphere } = characherLoad();
+    wallLoad();
+
+    const pipedModels: any[] = [];
+    modelRedx.models.map(async (modelObj: Model, key: number) => {
+      if (modelObj.file_name === "Soldier.glb") {
+        pipedModels.push({
+          ...(await soliderLoad(modelObj)),
+          y_diff: modelObj.y_diff || 0,
+        });
+      } else pipedModels.push(await modelObjLoad(modelObj));
+    });
 
     //----------------------------------animate-----------------------------------
     const controls = getCameraControlls();
     const cameraController = getCameraController();
     const cannonDebugRenderer = new CannonDebugRenderer(scene, world);
-    let delta;
-    let isDragging = false;
+    let delta: any;
 
     const animate = () => {
       requestAnimationFrame(animate);
       controls.update();
-      updateCamera(cameraController, soldier.body);
       delta = Math.min(clock.getDelta(), 0.1);
       world.step(delta);
       cannonDebugRenderer.update();
-      soldier.mixer.update(delta);
-      if (isDragging) {
-        soldier.body.position.set(
-          soldier.model.position.x,
-          soldier.model.position.y,
-          soldier.model.position.z
+      pipedModels.map((pipedModel) => {
+        if (pipedModel.isSoldier) {
+          pipedModel.mixer.update(delta);
+          updateCamera(cameraController, pipedModel.body);
+        }
+        pipedModel.model.position.set(
+          pipedModel.body.position.x as number,
+          (pipedModel.body.position.y as number) +
+            (pipedModel?.y_diff || 0) * (pipedModel?.dimensions?.y || 0),
+          pipedModel.body.position.z as number
         );
-        soldier.model.quaternion.set(
-          soldier.model.quaternion.x,
-          soldier.model.quaternion.y,
-          soldier.model.quaternion.z,
-          soldier.model.quaternion.w
+        pipedModel.model.quaternion.set(
+          pipedModel.body.quaternion.x as number,
+          pipedModel.body.quaternion.y as number,
+          pipedModel.body.quaternion.z as number,
+          pipedModel.body.quaternion.w as number
         );
-      } else {
-        // world.removeBody(soldier.body);
-        // const newSoldier = getBoundingPhysicsBody(soldier.model);
-        // soldier.body = newSoldier.body;
-        soldier.model.position.set(
-          soldier.body.position.x as number,
-          (soldier.body.position.y as number) - soldier.dimensions.y / 2,
-          soldier.body.position.z as number
-        );
-        soldier.model.quaternion.set(
-          soldier.body.quaternion.x as number,
-          soldier.body.quaternion.y as number,
-          soldier.body.quaternion.z as number,
-          soldier.body.quaternion.w as number
-        );
-      }
-
-      // Copy coordinates from Cannon to Three.js
-      cylinder.cylMesh.position.set(
-        cylinder.cylBody.position.x,
-        cylinder.cylBody.position.y,
-        cylinder.cylBody.position.z
-      );
-      cylinder.cylMesh.quaternion.set(
-        cylinder.cylBody.quaternion.x,
-        cylinder.cylBody.quaternion.y,
-        cylinder.cylBody.quaternion.z,
-        cylinder.cylBody.quaternion.w
-      );
-      cube.cubeMesh.position.set(
-        cube.cubeBody.position.x,
-        cube.cubeBody.position.y,
-        cube.cubeBody.position.z
-      );
-      cube.cubeMesh.quaternion.set(
-        cube.cubeBody.quaternion.x,
-        cube.cubeBody.quaternion.y,
-        cube.cubeBody.quaternion.z,
-        cube.cubeBody.quaternion.w
-      );
-      sphere.sphereMesh.position.set(
-        sphere.sphereBody.position.x,
-        sphere.sphereBody.position.y,
-        sphere.sphereBody.position.z
-      );
-      sphere.sphereMesh.quaternion.set(
-        sphere.sphereBody.quaternion.x,
-        sphere.sphereBody.quaternion.y,
-        sphere.sphereBody.quaternion.z,
-        sphere.sphereBody.quaternion.w
-      );
-
+      });
       render();
     };
-
     animate();
   };
+
+  const modelObjLoad = async (modelObj: Model) => {
+    const gltf: any = await gltfLoad(
+      "/assets/" + modelObj.type + "/" + modelObj.file_name
+    );
+    const model = gltf.scene.clone();
+    const scale = modelObj.scale || 1;
+    model.scale.set(scale, scale, scale);
+    const threePos = cacluate3DPosFrom2DPos(modelObj.position);
+    model.position.set(threePos.x, threePos.y, threePos.z);
+    model.traverse(function (object: any) {
+      if (object.isMesh) object.castShadow = true;
+    });
+    scene.add(model);
+
+    // Get Bounding Box and set physics
+    const { body, dimensions } = getBoundingPhysicsBody(model);
+
+    return {
+      model,
+      body,
+      dimensions,
+      y_diff: modelObj.y_diff || 0,
+    };
+  };
+
+  // const addToScene = async () => {
+  //   axisHelper();
+  //   lightLoad();
+  //   planeLoad();
+  //   const { wallBody } = wallLoad();
+  //   const soldier = await soliderLoad("/assets/glb/Soldier.glb");
+  //   const { cylinder, cube, sphere } = characherLoad();
+
+  //   //----------------------------------animate-----------------------------------
+  //   const controls = getCameraControlls();
+  //   const cameraController = getCameraController();
+  //   const cannonDebugRenderer = new CannonDebugRenderer(scene, world);
+  //   let delta;
+  //   let isDragging = false;
+
+  //   const animate = () => {
+  //     requestAnimationFrame(animate);
+  //     controls.update();
+  //     updateCamera(cameraController, soldier.body);
+  //     delta = Math.min(clock.getDelta(), 0.1);
+  //     world.step(delta);
+  //     cannonDebugRenderer.update();
+  //     soldier.mixer.update(delta);
+  //     if (isDragging) {
+  //       soldier.body.position.set(
+  //         soldier.model.position.x,
+  //         soldier.model.position.y,
+  //         soldier.model.position.z
+  //       );
+  //       soldier.model.quaternion.set(
+  //         soldier.model.quaternion.x,
+  //         soldier.model.quaternion.y,
+  //         soldier.model.quaternion.z,
+  //         soldier.model.quaternion.w
+  //       );
+  //     } else {
+  //       soldier.model.position.set(
+  //         soldier.body.position.x as number,
+  //         (soldier.body.position.y as number) - soldier.dimensions.y / 2,
+  //         soldier.body.position.z as number
+  //       );
+  //       soldier.model.quaternion.set(
+  //         soldier.body.quaternion.x as number,
+  //         soldier.body.quaternion.y as number,
+  //         soldier.body.quaternion.z as number,
+  //         soldier.body.quaternion.w as number
+  //       );
+  //     }
+
+  //     // Copy coordinates from Cannon to Three.js
+  //     cylinder.cylMesh.position.set(
+  //       cylinder.cylBody.position.x,
+  //       cylinder.cylBody.position.y,
+  //       cylinder.cylBody.position.z
+  //     );
+  //     cylinder.cylMesh.quaternion.set(
+  //       cylinder.cylBody.quaternion.x,
+  //       cylinder.cylBody.quaternion.y,
+  //       cylinder.cylBody.quaternion.z,
+  //       cylinder.cylBody.quaternion.w
+  //     );
+  //     cube.cubeMesh.position.set(
+  //       cube.cubeBody.position.x,
+  //       cube.cubeBody.position.y,
+  //       cube.cubeBody.position.z
+  //     );
+  //     cube.cubeMesh.quaternion.set(
+  //       cube.cubeBody.quaternion.x,
+  //       cube.cubeBody.quaternion.y,
+  //       cube.cubeBody.quaternion.z,
+  //       cube.cubeBody.quaternion.w
+  //     );
+  //     sphere.sphereMesh.position.set(
+  //       sphere.sphereBody.position.x,
+  //       sphere.sphereBody.position.y,
+  //       sphere.sphereBody.position.z
+  //     );
+  //     sphere.sphereMesh.quaternion.set(
+  //       sphere.sphereBody.quaternion.x,
+  //       sphere.sphereBody.quaternion.y,
+  //       sphere.sphereBody.quaternion.z,
+  //       sphere.sphereBody.quaternion.w
+  //     );
+
+  //     render();
+  //   };
+
+  //   animate();
+  // };
 
   const axisHelper = () => {
     scene.add(new THREE.AxesHelper(50));
@@ -327,11 +422,7 @@ const Scene = () => {
       fixedRotation: true,
       material: physMat,
     });
-    body.position.set(
-      model.position.x,
-      model.position.y + dimensions.y / 2,
-      model.position.z
-    );
+    body.position.set(model.position.x, model.position.y, model.position.z);
     const groundSoldierContactMat = new CANNON.ContactMaterial(
       planePhyMaterial,
       physMat,
@@ -346,11 +437,16 @@ const Scene = () => {
     };
   };
 
-  const soliderLoad = async () => {
-    const gltf: any = await gltfLoad("/assets/glb/Soldier.glb");
+  const soliderLoad = async (modelObj: Model) => {
+    const gltf: any = await gltfLoad(
+      "/assets/" + modelObj.type + "/" + modelObj.file_name
+    );
     const model = gltf.scene;
     // model.scale.set(0.1, 0.1, 0.1);
     model.position.set(-10, 15, 0);
+    const threePos = cacluate3DPosFrom2DPos(modelObj.position);
+    model.position.set(threePos.x, threePos.y, threePos.z);
+
     model.traverse(function (object: any) {
       if (object.isMesh) object.castShadow = true;
     });
@@ -404,6 +500,7 @@ const Scene = () => {
       idleAction,
       walkAction,
       runAction,
+      isSoldier: true,
     };
   };
 
@@ -572,6 +669,47 @@ const Scene = () => {
     };
   };
 
+  return <canvas ref={ref} />;
+};
+
+const Scene = () => {
+  const modelRedx = useSelector((state: any) => state.model);
+  const [controlEvent, setControlEvent] = useState<ModelControl>({
+    show_model: true,
+    show_skt: false,
+    activate_all: true,
+    continue_model: true,
+    single_step: {
+      enabled: false,
+      event: false,
+      size_of_next: 0.05,
+    },
+  });
+  const dispatch = useDispatch();
+  const onSelectedModel = (uuid: string) => {
+    dispatch({
+      type: SELECT_MODEL,
+      payload: {
+        selected: uuid,
+      },
+    });
+  };
+
+  const onPointerMissed = (event: any) => {
+    dispatch({
+      type: DESELECT_MODEL,
+    });
+  };
+
+  const updateModel = (model: Model) => {
+    dispatch({
+      type: UPDATE_MODEL,
+      payload: {
+        model,
+      },
+    });
+  };
+
   return (
     <Droppable droppableId="CANVAS">
       {(provided) => (
@@ -580,7 +718,7 @@ const Scene = () => {
           ref={provided.innerRef}
           {...provided.droppableProps}
         >
-          <canvas ref={canvasRef} />
+          <CanvasScene modelRedx={modelRedx} />
           {provided.placeholder}
         </div>
       )}

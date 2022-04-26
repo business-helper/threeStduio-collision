@@ -5,6 +5,7 @@ export const GLTF = {
     {
       id: uuid(),
       name: "AlphaBlendModeTest.gltf",
+      yDiff: -0.5,
     },
     {
       id: uuid(),
@@ -13,10 +14,13 @@ export const GLTF = {
     {
       id: uuid(),
       name: "Buggy.gltf",
+      scale: 0.02,
+      yDiff: -0.45,
     },
     {
       id: uuid(),
       name: "Poimandres.gltf",
+      yDiff: -0.5,
     },
   ],
 };
@@ -26,21 +30,18 @@ export const GLB = {
     {
       id: uuid(),
       name: "Cat.glb",
-      use_jsx: true,
+      scale: 0.1,
+      yDiff: -0.5,
     },
     {
       id: uuid(),
       name: "Soldier.glb",
-      use_jsx: true,
+      can_be_character: true,
+      yDiff: -0.5,
     },
   ],
 };
 
 export const OBJ = {
-  files: [
-    {
-      id: uuid(),
-      name: "Poimandres.obj",
-    },
-  ],
+  files: [],
 };

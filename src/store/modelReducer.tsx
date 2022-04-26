@@ -10,6 +10,9 @@ export interface Model {
   rotation: any | null;
   color: string | null;
   animation?: boolean | null;
+  can_be_character?: boolean | null;
+  y_diff?: number | null;
+  scale?: number | null;
 }
 
 export const initialState: {
@@ -33,6 +36,9 @@ const modelReducer = (state = initialState, action: any) => {
           position: action.payload?.position,
           color: null,
           rotation: [0, Math.PI / 2, 0],
+          can_be_character: action.payload?.can_be_character,
+          y_diff: action.payload?.y_diff,
+          scale: action.payload?.scale || 1,
         };
         const models = [...(state.models || []), newModel];
         const selModel = newModel.uuid;

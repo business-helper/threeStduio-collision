@@ -62,6 +62,9 @@ function App() {
               x: event?.offsetX,
               y: event?.offsetY,
             },
+            can_be_character: selValue?.can_be_character,
+            y_diff: selValue?.yDiff || 0,
+            scale: selValue?.scale || 1,
           },
         });
       }
