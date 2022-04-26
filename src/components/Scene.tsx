@@ -136,7 +136,11 @@ const Scene = () => {
       world.step(delta);
       cannonDebugRenderer.update();
       soldier.mixer.update(delta);
-
+      // soldier.model.rotation.set(0, Math.PI / 2, 0);
+      // // soldier.model.traverse(function (object: any) {
+      // //   if (object.isMesh) object.castShadow = true;
+      // //   object.rotation.set(0, Math.PI / 2, 0);
+      // // });
       if (isDragging) {
         soldier.body.position.set(
           soldier.model.position.x,
@@ -149,7 +153,6 @@ const Scene = () => {
           soldier.model.quaternion.z,
           soldier.model.quaternion.w
         );
-        // soldier.model.rotation.set(0, Math.PI / 2, 0);
       } else {
         // world.removeBody(soldier.body);
         // const newSoldier = getBoundingPhysicsBody(soldier.model);
@@ -344,10 +347,10 @@ const Scene = () => {
     const model = gltf.scene;
     // model.scale.set(0.1, 0.1, 0.1);
     // model.rotation.set(0, Math.PI / 2, 0);
-    model.rotateY(-Math.PI / 2);
     model.position.set(-10, 15, 0);
     model.traverse(function (object: any) {
       if (object.isMesh) object.castShadow = true;
+      // rotateAroundWorldAxis(object, new THREE.Vector3(0, 1, 0), Math.PI / 2);
     });
     const animations = gltf.animations;
     const mixer = new THREE.AnimationMixer(model);
@@ -365,7 +368,7 @@ const Scene = () => {
     // Key Controll
     document.addEventListener("keydown", (event: any) => {
       const keyCode = event.which;
-      const step = 15;
+      const step = 10;
       if (keyCode === 87) {
         body.velocity.x = step;
         body.velocity.z = 0;
