@@ -200,6 +200,7 @@ const CanvasScene = (props: any) => {
       "/assets/" + modelObj.type + "/" + modelObj.file_name
     );
     const model = gltf.scene.clone();
+    model.name = modelObj.uuid;
     const scale = modelObj.scale || 1;
     model.scale.set(scale, scale, scale);
     const threePos = cacluate3DPosFrom2DPos(modelObj.position);
@@ -207,7 +208,7 @@ const CanvasScene = (props: any) => {
     model.traverse(function (object: any) {
       if (object.isMesh) object.castShadow = true;
     });
-    scene.add(model);
+    if (!scene.getObjectByName(modelObj.uuid!)) scene.add(model);
 
     // Get Bounding Box and set physics
     const { body, dimensions } = getBoundingPhysicsBody(model);
