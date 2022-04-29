@@ -11,3 +11,9 @@
 .canvas-container div {
     display: none !important;
 }
+
+.canvas-container div.canvas-wrapper {
+    width: 100% !important;
+    height: 100% !important;
+    display: block !important;
+}
