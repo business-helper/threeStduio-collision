@@ -21,12 +21,9 @@ import React from "react";
 
 const CanvasScene = (props: any) => {
   const { modelRedx } = props;
-  const [pipedModels, setPipedModels] = useState<any[]>([]);
 
   const { width, height, ref } = useResizeDetector();
-  const [renderer, setRenderer] = useState<THREE.WebGLRenderer>(
-    new THREE.WebGLRenderer()
-  );
+  const [renderer, setRenderer] = useState<any>(null);
   const [camera, setCamera] = useState<any>();
   const [scene] = useState(new THREE.Scene());
   const [world] = useState(new CANNON.World());
@@ -39,22 +36,13 @@ const CanvasScene = (props: any) => {
   useEffect(() => {
     // TODO
     // update Canvas fully
-    // renderer.clear();
   }, [modelRedx]);
-
-  const initRenderer = () => {
-    if (!render || !world) return;
-    renderer.clear();
-    // world.bodies.forEach((body) => {
-    //   world.removeBody(body);
-    // });
-  };
 
   const handleResize = useCallback(() => {
     if (!renderer || !ref || !camera) return;
-    camera.aspect = (width as number) / (height as number);
+    camera.aspect = (width!) / (height!);
     camera.updateProjectionMatrix();
-    renderer?.setSize(width as number, height as number);
+    renderer?.setSize(width, height);
     render();
   }, [renderer, ref, camera, width, height]);
 
@@ -64,12 +52,11 @@ const CanvasScene = (props: any) => {
 
   useEffect(() => {
     if (!ref) return;
-    ref.current.appendChild(renderer.domElement);
-    // setRenderer(
-    //   new THREE.WebGLRenderer({
-    //     canvas: ref.current,
-    //   })
-    // );
+    setRenderer(
+      new THREE.WebGLRenderer({
+        canvas: ref.current,
+      })
+    );
     setCamera(
       new THREE.PerspectiveCamera(
         75,
@@ -125,7 +112,7 @@ const CanvasScene = (props: any) => {
   };
 
   useEffect(() => {
-    if (!renderer || !camera) return;
+    if (!renderer) return;
     handleResize();
     configScene();
     configRenderer();
@@ -134,7 +121,7 @@ const CanvasScene = (props: any) => {
 
     renderModelObjs();
     // addToScene();
-  }, [modelRedx, camera]);
+  }, [renderer, modelRedx]);
 
   const cacluate3DPosFrom2DPos = (pos2: any) => {
     const vec3 = new Vector3();
@@ -158,56 +145,15 @@ const CanvasScene = (props: any) => {
   };
 
   const renderModelObjs = async () => {
-    initRenderer();
     axisHelper();
     lightLoad();
     planeLoad();
     wallLoad();
 
-<<<<<<< HEAD
-    modelRedx.models.map(async (modelObj: Model, key: number) => {
-      let pipedModel = null;
-      if (modelObj.file_name === "Soldier.glb") {
-        pipedModel = await soliderLoad(modelObj);
-        pipedModels.push({
-          ...pipedModel,
-          y_diff: modelObj.y_diff || 0,
-        });
-      } else {
-        pipedModel = await modelObjLoad(modelObj);
-        const existPModel = pipedModels.filter((pm) => {
-          return pm.model.name === modelObj.uuid;
-        });
-        if (existPModel.length > 0) return;
-        pipedModels.push(pipedModel);
-        pipedModel.model.name = modelObj.uuid;
-        scene.add(pipedModel.model);
-        world.addBody(pipedModel.body);
-        world.addContactMaterial(pipedModel.groundWithContactMat);
-      }
-    });
-    console.log(scene);
-
-    // //----------------------------------setup spring------------------------------
-    // const size = 1
-    // // setupSpring();
-    // const spring = new CANNON.Spring(boxBody, sphereBody, {
-    //   localAnchorA: new CANNON.Vec3(-size, size, 0),
-    //   localAnchorB: new CANNON.Vec3(0, 0, 0),
-    //   restLength: 0,
-    //   stiffness: 50,
-    //   damping: 1,
-    // })
-
-    // // Compute the force after each step
-    // world.addEventListener('postStep', (event:any) => {
-    //   spring.applyForce()
-    // })
-=======
     const pipedModels: any[] = [];
     (modelRedx.models as Model[])
-      .filter(model => !scene.getObjectByName(model.uuid!))
-      .map(async (modelObj: Model, key: number) => {
+      .filter(modelObj => !scene.getObjectByName(modelObj.uuid!))
+      .map(async (modelObj) => {
         if (modelObj.file_name === "Soldier.glb") {
           pipedModels.push({
             ...(await soliderLoad(modelObj)),
@@ -215,7 +161,6 @@ const CanvasScene = (props: any) => {
           });
         } else pipedModels.push(await modelObjLoad(modelObj));
       });
->>>>>>> dev-test
 
     //----------------------------------animate-----------------------------------
     const controls = getCameraControlls();
@@ -265,19 +210,14 @@ const CanvasScene = (props: any) => {
     model.traverse(function (object: any) {
       if (object.isMesh) object.castShadow = true;
     });
-<<<<<<< HEAD
-=======
-    if (!scene.getObjectByName(modelObj.uuid!)) scene.add(model);
->>>>>>> dev-test
+    scene.add(model);
 
     // Get Bounding Box and set physics
-    const { body, dimensions, groundWithContactMat } =
-      getBoundingPhysicsBody(model);
+    const { body, dimensions } = getBoundingPhysicsBody(model);
 
     return {
       model,
       body,
-      groundWithContactMat,
       dimensions,
       y_diff: modelObj.y_diff || 0,
     };
@@ -486,7 +426,7 @@ const CanvasScene = (props: any) => {
       material: physMat,
     });
     body.position.set(model.position.x, model.position.y, model.position.z);
-    const groundWithContactMat = new CANNON.ContactMaterial(
+    const groundSoldierContactMat = new CANNON.ContactMaterial(
       planePhyMaterial,
       physMat,
       {
@@ -494,11 +434,12 @@ const CanvasScene = (props: any) => {
         contactEquationStiffness: 10000,
       }
     );
+    world.addBody(body);
+    world.addContactMaterial(groundSoldierContactMat);
 
     return {
       dimensions,
       body,
-      groundWithContactMat,
     };
   };
 
@@ -527,8 +468,7 @@ const CanvasScene = (props: any) => {
     scene.add(model);
 
     // Get Bounding Box and set physics
-    const { body, dimensions, groundWithContactMat } =
-      getBoundingPhysicsBody(model);
+    const { body, dimensions } = getBoundingPhysicsBody(model);
 
     // Key Controll
     document.addEventListener("keydown", (event: any) => {
@@ -561,7 +501,6 @@ const CanvasScene = (props: any) => {
     return {
       model,
       body,
-      groundWithContactMat,
       dimensions,
       mixer,
       actions,
@@ -737,7 +676,7 @@ const CanvasScene = (props: any) => {
     };
   };
 
-  return <div className="canvas-wrapper" ref={ref} />;
+  return <canvas ref={ref} />;
 };
 
 const Scene = () => {
