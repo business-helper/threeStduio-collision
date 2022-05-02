@@ -164,6 +164,7 @@ const CanvasScene = (props: any) => {
     planeLoad();
     wallLoad();
 
+<<<<<<< HEAD
     modelRedx.models.map(async (modelObj: Model, key: number) => {
       let pipedModel = null;
       if (modelObj.file_name === "Soldier.glb") {
@@ -202,6 +203,19 @@ const CanvasScene = (props: any) => {
     // world.addEventListener('postStep', (event:any) => {
     //   spring.applyForce()
     // })
+=======
+    const pipedModels: any[] = [];
+    (modelRedx.models as Model[])
+      .filter(model => !scene.getObjectByName(model.uuid!))
+      .map(async (modelObj: Model, key: number) => {
+        if (modelObj.file_name === "Soldier.glb") {
+          pipedModels.push({
+            ...(await soliderLoad(modelObj)),
+            y_diff: modelObj.y_diff || 0,
+          });
+        } else pipedModels.push(await modelObjLoad(modelObj));
+      });
+>>>>>>> dev-test
 
     //----------------------------------animate-----------------------------------
     const controls = getCameraControlls();
@@ -243,6 +257,7 @@ const CanvasScene = (props: any) => {
       "/assets/" + modelObj.type + "/" + modelObj.file_name
     );
     const model = gltf.scene.clone();
+    model.name = modelObj.uuid;
     const scale = modelObj.scale || 1;
     model.scale.set(scale, scale, scale);
     const threePos = cacluate3DPosFrom2DPos(modelObj.position);
@@ -250,6 +265,10 @@ const CanvasScene = (props: any) => {
     model.traverse(function (object: any) {
       if (object.isMesh) object.castShadow = true;
     });
+<<<<<<< HEAD
+=======
+    if (!scene.getObjectByName(modelObj.uuid!)) scene.add(model);
+>>>>>>> dev-test
 
     // Get Bounding Box and set physics
     const { body, dimensions, groundWithContactMat } =
@@ -470,7 +489,10 @@ const CanvasScene = (props: any) => {
     const groundWithContactMat = new CANNON.ContactMaterial(
       planePhyMaterial,
       physMat,
-      { friction: 0.02 }
+      {
+        friction: 0.02, 
+        contactEquationStiffness: 10000,
+      }
     );
 
     return {
@@ -485,6 +507,7 @@ const CanvasScene = (props: any) => {
       "/assets/" + modelObj.type + "/" + modelObj.file_name
     );
     const model = gltf.scene;
+    model.name = modelObj.uuid;
     // model.scale.set(0.1, 0.1, 0.1);
     model.position.set(-10, 15, 0);
     const threePos = cacluate3DPosFrom2DPos(modelObj.position);
