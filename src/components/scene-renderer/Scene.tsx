@@ -151,14 +151,16 @@ const CanvasScene = (props: any) => {
     wallLoad();
 
     const pipedModels: any[] = [];
-    modelRedx.models.map(async (modelObj: Model, key: number) => {
-      if (modelObj.file_name === "Soldier.glb") {
-        pipedModels.push({
-          ...(await soliderLoad(modelObj)),
-          y_diff: modelObj.y_diff || 0,
-        });
-      } else pipedModels.push(await modelObjLoad(modelObj));
-    });
+    (modelRedx.models as Model[])
+      .filter(model => !scene.getObjectByName(model.uuid!))
+      .map(async (modelObj: Model, key: number) => {
+        if (modelObj.file_name === "Soldier.glb") {
+          pipedModels.push({
+            ...(await soliderLoad(modelObj)),
+            y_diff: modelObj.y_diff || 0,
+          });
+        } else pipedModels.push(await modelObjLoad(modelObj));
+      });
 
     //----------------------------------animate-----------------------------------
     const controls = getCameraControlls();
@@ -427,7 +429,10 @@ const CanvasScene = (props: any) => {
     const groundSoldierContactMat = new CANNON.ContactMaterial(
       planePhyMaterial,
       physMat,
-      { friction: 0.02 }
+      {
+        friction: 0.02, 
+        contactEquationStiffness: 10000,
+      }
     );
     world.addBody(body);
     world.addContactMaterial(groundSoldierContactMat);
@@ -443,6 +448,7 @@ const CanvasScene = (props: any) => {
       "/assets/" + modelObj.type + "/" + modelObj.file_name
     );
     const model = gltf.scene;
+    model.name = modelObj.uuid;
     // model.scale.set(0.1, 0.1, 0.1);
     model.position.set(-10, 15, 0);
     const threePos = cacluate3DPosFrom2DPos(modelObj.position);
